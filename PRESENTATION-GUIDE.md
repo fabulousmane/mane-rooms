@@ -8,7 +8,7 @@ This guide is written to help you explain Mane Rooms in a live presentation. It 
 
 Mane Rooms is a responsive front-end prototype for finding and booking university rooms. It lets a visitor explore a sample campus, review room details, and try a booking flow.
 
-The sample room catalog includes air conditioning in every space, a recreation room for Levels 300–500 with a 15-person capacity and 5-person minimum booking group, a PS5, chess, checkers, Monopoly, Whot, and Ace, and a private cinema for up to 10 people that is available to Level 500 students and staff.
+The sample room catalog includes the Willow Study Room, which is open to all student levels; air conditioning in every space; a recreation room for Levels 300–500 with a 15-person capacity and 5-person minimum booking group, a PS5, chess, checkers, Monopoly, Whot, and Ace; and a private cinema for up to 10 people that is available to Level 500 students and staff.
 
 The project is intentionally small and dependency-free: it uses HTML, CSS, and browser JavaScript rather than a front-end framework. It can be opened in a modern browser or served as static files. Google Fonts are requested by the page when internet access is available; system fonts are used as fallbacks.
 
@@ -109,7 +109,7 @@ The **Clear all** action resets the filters and group-size selection.
 
 ### Room cards
 
-Each card presents a room's name, building/location, capacity, type, amenities, access requirement, sample availability label, and booking action. The recreation room is available only to students at Levels 300–500; it shows its 15-person capacity and 5-person minimum, and its booking button stays disabled unless both the account level and group size are eligible. The private cinema is available to Level 500 students and staff. A room can be marked unavailable or restricted in the sample data. The interface disables booking for restricted and unavailable rooms.
+Each card presents a room's name, building/location, capacity, type, amenities, access requirement, sample availability label, and booking action. Willow Study Room is open to all student levels. The recreation room is available only to students at Levels 300–500; it shows its 15-person capacity and 5-person minimum, and its booking button stays disabled unless both the account level and group size are eligible. The private cinema is available to Level 500 students and staff. A room can be marked unavailable or restricted in the sample data. The interface disables booking for restricted and unavailable rooms.
 
 ### Empty state
 

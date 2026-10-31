@@ -16,6 +16,7 @@ Then visit <http://localhost:8765>.
 
 - Responsive landing page with booking guidelines, room tiers, and FAQ.
 - Search form for date, time, duration, group size, and equipment.
+- Willow Study Room is available to all student levels.
 - Air conditioning in every room, plus a recreation room with a PS5 and board/card games, and a 10-person private cinema.
 - Recreation-room bookings require at least 5 people and support groups up to its 15-person capacity.
 - Recreation-room access is limited to Levels 300–500; the private cinema is for Level 500 students and staff.

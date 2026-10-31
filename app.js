@@ -20,7 +20,7 @@ const icon = (name) => {
 };
 
 const rooms = [
-  { id: 1, name: "Willow Study Room", building: "Merritt Library · 2nd floor", capacity: 6, level: 100, type: "Group study", amenities: ["Whiteboard", "AC"], image: 1, available: true, time: "Available now" },
+  { id: 1, name: "Willow Study Room", building: "Merritt Library · 2nd floor", capacity: 6, level: 100, allLevels: true, type: "Group study", amenities: ["Whiteboard", "AC"], image: 1, available: true, time: "Available now" },
   { id: 2, name: "The Hartwell Seminar", building: "Hartwell Hall · Room 204", capacity: 12, level: 300, type: "Seminar", amenities: ["Projector", "Whiteboard", "AC"], image: 2, available: true, time: "Available now" },
   { id: 3, name: "Quiet Pod 08", building: "Merritt Library · 4th floor", capacity: 2, level: 300, type: "Quiet pod", amenities: ["AC"], image: 3, available: true, time: "Available at 2:30 PM" },
   { id: 4, name: "Innovation Lab", building: "Foundry Building · 1st floor", capacity: 8, level: 400, type: "Project lab", amenities: ["Projector", "Whiteboard", "AC"], image: 4, available: true, time: "Available now" },
@@ -65,6 +65,7 @@ function accountLevel() {
 function roomAccessIssue(room) {
   const staff = accountIsStaff();
   const level = accountLevel();
+  if (room.allLevels) return null;
   if (room.staffAccess) {
     if (staff || level === 500) return null;
     return "This room is available to Level 500 students and staff only.";
@@ -78,6 +79,7 @@ function roomAccessIssue(room) {
 }
 
 function roomAccessLabel(room) {
+  if (room.allLevels) return "All levels";
   if (room.staffAccess) return "Level 500 or staff";
   if (room.faculty) return "Staff only";
   if (room.minLevel && room.maxLevel) return `Level ${room.minLevel}–${room.maxLevel} only`;
