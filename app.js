@@ -23,22 +23,27 @@ const rooms = [
   { id: 1, name: "Willow Study Room", building: "Merritt Library · 2nd floor", capacity: 6, level: 100, type: "Group study", amenities: ["Whiteboard", "AC"], image: 1, available: true, time: "Available now" },
   { id: 2, name: "The Hartwell Seminar", building: "Hartwell Hall · Room 204", capacity: 12, level: 300, type: "Seminar", amenities: ["Projector", "Whiteboard", "AC"], image: 2, available: true, time: "Available now" },
   { id: 3, name: "Quiet Pod 08", building: "Merritt Library · 4th floor", capacity: 2, level: 300, type: "Quiet pod", amenities: ["AC"], image: 3, available: true, time: "Available at 2:30 PM" },
-  { id: 4, name: "Innovation Lab", building: "Foundry Building · 1st floor", capacity: 8, level: 400, type: "Project lab", amenities: ["Projector", "Whiteboard"], image: 4, available: true, time: "Available now" },
+  { id: 4, name: "Innovation Lab", building: "Foundry Building · 1st floor", capacity: 8, level: 400, type: "Project lab", amenities: ["Projector", "Whiteboard", "AC"], image: 4, available: true, time: "Available now" },
   { id: 5, name: "Oak Research Suite", building: "Hawthorne Center · 5th floor", capacity: 4, level: 500, type: "Research suite", amenities: ["Projector", "AC"], image: 5, available: false, faculty: true, time: "Faculty priority" },
   { id: 6, name: "Faculty Commons", building: "Foundry Building · 3rd floor", capacity: 10, level: 500, type: "Faculty lounge", amenities: ["Whiteboard", "AC"], image: 6, available: false, faculty: true, time: "Faculty priority" },
   { id: 7, name: "Cedar Research Suite", building: "Hawthorne Center · 4th floor", capacity: 4, level: 500, type: "Research suite", amenities: ["Projector", "AC"], image: 5, available: true, time: "Available now" },
+  { id: 8, name: "Mane Recreation Room", building: "Student Center · Recreation wing", capacity: 15, minimumBookingSize: 5, level: 300, minLevel: 300, maxLevel: 500, type: "Recreation", amenities: ["AC", "PS5", "Chess", "Checkers", "Monopoly", "Whot", "Ace"], image: 7, available: true, time: "Available now" },
+  { id: 9, name: "Private Cinema", building: "Student Center · Cinema suite", capacity: 10, level: 500, staffAccess: true, type: "Private cinema", amenities: ["AC", "Projector"], image: 8, available: true, time: "Available now" },
 ];
+
+const amenityOptions = ["Projector", "Whiteboard", "AC", "PS5", "Chess", "Checkers", "Monopoly", "Whot", "Ace"];
 
 const today = new Date();
 const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
 const state = {
   page: "home",
+  accountRole: "300",
   selectedRoom: null,
   modifyBookingId: null,
   bookings: [],
   filters: { level: "all", amenities: [], faculty: false, noResults: false },
-  query: { date: localDate, time: "10:00", duration: "1 hour", capacity: 2 },
+  query: { date: localDate, time: "10:00", duration: "1 hour", groupSize: 2 },
   offline: false,
   gameScore: 0,
   gameJumping: false,
@@ -49,6 +54,47 @@ const modalRoot = document.querySelector("#modal-root");
 const levelLabel = (level) => `Level ${level}+ only`;
 const roomById = (id) => rooms.find((room) => room.id === Number(id));
 
+function accountIsStaff() {
+  return state.accountRole === "staff";
+}
+
+function accountLevel() {
+  return accountIsStaff() ? null : Number(state.accountRole);
+}
+
+function roomAccessIssue(room) {
+  const staff = accountIsStaff();
+  const level = accountLevel();
+  if (room.staffAccess) {
+    if (staff || level === 500) return null;
+    return "This room is available to Level 500 students and staff only.";
+  }
+  if (room.faculty && !staff) return "This room is reserved for staff.";
+  if (staff && room.maxLevel) return `This room is available to Level ${room.minLevel}–${room.maxLevel} students only.`;
+  if (!staff && room.minLevel && level < room.minLevel) return `This room is available from Level ${room.minLevel}.`;
+  if (!staff && room.maxLevel && level > room.maxLevel) return `This room is available through Level ${room.maxLevel} only.`;
+  if (!staff && room.level > level) return `This room is available from Level ${room.level}.`;
+  return null;
+}
+
+function roomAccessLabel(room) {
+  if (room.staffAccess) return "Level 500 or staff";
+  if (room.faculty) return "Staff only";
+  if (room.minLevel && room.maxLevel) return `Level ${room.minLevel}–${room.maxLevel} only`;
+  return levelLabel(room.level);
+}
+
+function bookingIssue(room) {
+  if (!room) return "Return to room search and choose an available room.";
+  const accessIssue = roomAccessIssue(room);
+  if (accessIssue) return accessIssue;
+  if (!room.available) return "This room is currently unavailable.";
+  const groupSize = Number(state.query.groupSize);
+  if (groupSize > room.capacity) return `${room.name} can hold up to ${room.capacity} people. Choose a smaller group size or another room.`;
+  if (room.minimumBookingSize && groupSize < room.minimumBookingSize) return `${room.name} requires at least ${room.minimumBookingSize} people per booking. Update the group size to continue.`;
+  return null;
+}
+
 function header() {
   return `<header class="topbar">
     <a class="brand" href="#" data-page="home"><span class="brand-mark">${icon("building")}</span> Mane <span style="font-weight:500;color:#64748b">Rooms</span></a>
@@ -57,7 +103,7 @@ function header() {
       <a href="#" class="nav-link ${state.page === "search" ? "active" : ""}" data-page="search">Find a room</a>
       <a href="#" class="nav-link ${state.page === "bookings" ? "active" : ""}" data-page="bookings">My bookings${state.bookings.length ? ` (${state.bookings.length})` : ""}</a>
     </nav>
-    <div class="top-actions"><span class="level-pill">✦ &nbsp;LEVEL 300</span><span class="avatar" aria-label="Student profile">JD</span><span class="profile-name">Jordan Davis</span>
+    <div class="top-actions"><label class="level-pill account-select-label" for="account-role">✦ &nbsp;Access <select class="account-select" id="account-role" aria-label="Demo account access" data-account-role><option value="100" ${state.accountRole === "100" ? "selected" : ""}>Level 100</option><option value="200" ${state.accountRole === "200" ? "selected" : ""}>Level 200</option><option value="300" ${state.accountRole === "300" ? "selected" : ""}>Level 300</option><option value="400" ${state.accountRole === "400" ? "selected" : ""}>Level 400</option><option value="500" ${state.accountRole === "500" ? "selected" : ""}>Level 500</option><option value="staff" ${accountIsStaff() ? "selected" : ""}>Staff</option></select></label><span class="avatar" aria-label="${accountIsStaff() ? "Staff profile" : "Student profile"}">${accountIsStaff() ? "ST" : "JD"}</span><span class="profile-name">${accountIsStaff() ? "Staff account" : "Jordan Davis"}</span>
       <button class="mobile-menu" aria-label="Toggle navigation" aria-expanded="false" data-action="menu">${icon("menu")}</button>
     </div>
   </header>`;
@@ -67,7 +113,7 @@ function searchFields(prefix = "home") {
   return `<div class="field"><label for="${prefix}-date">Date</label><input id="${prefix}-date" data-query="date" type="date" value="${state.query.date}"></div>
     <div class="field"><label for="${prefix}-time">Start time</label><select id="${prefix}-time" data-query="time"><option>10:00</option><option>11:00</option><option>13:00</option><option>14:30</option><option>16:00</option></select></div>
     <div class="field"><label for="${prefix}-duration">Duration</label><select id="${prefix}-duration" data-query="duration"><option>1 hour</option><option>30 minutes</option><option>1.5 hours</option><option>2 hours</option><option>3 hours</option></select></div>
-    <div class="field"><label for="${prefix}-capacity">People</label><select id="${prefix}-capacity" data-query="capacity"><option value="1">1+</option><option value="2">2+</option><option value="4">4+</option><option value="6">6+</option><option value="10">10+</option></select></div>`;
+    <div class="field"><label for="${prefix}-group-size">Group size</label><select id="${prefix}-group-size" data-query="groupSize">${Array.from({ length: 15 }, (_, index) => index + 1).map((count) => `<option value="${count}">${count}</option>`).join("")}</select></div>`;
 }
 
 function home() {
@@ -97,13 +143,16 @@ function home() {
 }
 
 function roomCard(room) {
-  const locked = !room.faculty && room.level > 300;
-  const status = room.faculty ? "Faculty priority" : locked ? "Level restricted" : room.available ? room.time : "Reserved";
+  const accessIssue = roomAccessIssue(room);
+  const locked = Boolean(accessIssue);
+  const belowMinimum = room.minimumBookingSize && Number(state.query.groupSize) < room.minimumBookingSize;
+  const status = room.faculty ? "Staff priority" : locked ? "Access restricted" : room.available ? room.time : "Reserved";
   return `<article class="room-card">
     <div class="room-visual visual-${room.image}"><span class="room-visual-label">${status}</span></div>
-    <div class="room-content"><div class="room-title-row"><div><h3>${room.name}</h3><span class="building">${room.building}</span></div><span class="status-badge ${room.faculty ? "vip" : locked ? "locked" : room.available ? "available" : "locked"}">${room.faculty ? "Faculty" : locked ? "Locked" : room.available ? "Available" : "Reserved"}</span></div>
-      <div class="room-meta"><span>${icon("users")} ${room.capacity} people</span><span>${icon("clock")} ${room.type}</span></div>
-      <div class="room-footer"><span class="requirement ${locked || room.faculty ? "locked" : ""}">${room.faculty ? "Faculty only" : locked ? `Locked · unlocks at Level ${room.level}` : levelLabel(room.level)}</span><button class="btn ${locked || room.faculty || !room.available ? "secondary" : ""}" data-action="book" data-room="${room.id}" ${locked || room.faculty || !room.available ? "disabled" : ""}>${locked || room.faculty ? "Access restricted" : room.available ? "Book now" : "Unavailable"}</button></div>
+    <div class="room-content"><div class="room-title-row"><div><h3>${room.name}</h3><span class="building">${room.building}</span></div><span class="status-badge ${room.faculty ? "vip" : locked || !room.available ? "locked" : "available"}">${room.faculty ? "Staff" : locked ? "Restricted" : room.available ? "Available" : "Reserved"}</span></div>
+      <div class="room-meta"><span>${icon("users")} ${room.capacity} people${room.minimumBookingSize ? ` · min ${room.minimumBookingSize}` : ""}</span><span>${icon("clock")} ${room.type}</span></div>
+      <ul class="room-amenities" aria-label="Room amenities">${room.amenities.map((amenity) => `<li>${amenity}</li>`).join("")}</ul>
+      <div class="room-footer"><span class="requirement ${locked || room.faculty ? "locked" : ""}">${roomAccessLabel(room)}</span><button class="btn ${locked || !room.available || belowMinimum ? "secondary" : ""}" data-action="book" data-room="${room.id}" ${locked || !room.available || belowMinimum ? "disabled" : ""}>${locked ? "Access restricted" : belowMinimum ? `Select ${room.minimumBookingSize}+ people` : room.available ? "Book now" : "Unavailable"}</button></div>
     </div>
   </article>`;
 }
@@ -112,10 +161,12 @@ function filteredRooms() {
   return rooms.filter((room) => {
     if (state.filters.noResults) return false;
     if (!room.available && !(state.filters.faculty && room.faculty)) return false;
-    if (room.capacity < Number(state.query.capacity || 1)) return false;
-    if (state.filters.level === "200" && room.level > 200) return false;
-    if (state.filters.level === "400" && (room.level <= 200 || room.level > 400)) return false;
-    if (state.filters.level === "500" && room.level !== 500) return false;
+    if (room.capacity < Number(state.query.groupSize || 1)) return false;
+    const minLevel = room.minLevel ?? room.level;
+    const maxLevel = room.maxLevel ?? 500;
+    if (state.filters.level === "200" && minLevel > 200) return false;
+    if (state.filters.level === "400" && (maxLevel < 300 || minLevel > 400)) return false;
+    if (state.filters.level === "500" && maxLevel < 500) return false;
     if (state.filters.amenities.some((amenity) => !room.amenities.includes(amenity))) return false;
     return state.filters.faculty ? room.faculty : !room.faculty;
   });
@@ -129,7 +180,7 @@ function search() {
     <div class="results-layout">
       <aside class="filter-card"><div class="filter-title">Filters <button class="text-link" data-action="clear-filters">Clear all</button></div>
         <div class="filter-group"><h3>Student level</h3><label class="check-row"><input type="radio" name="level" value="all" ${state.filters.level === "all" ? "checked" : ""}> All levels</label><label class="check-row"><input type="radio" name="level" value="200" ${state.filters.level === "200" ? "checked" : ""}> Level 100–200</label><label class="check-row"><input type="radio" name="level" value="400" ${state.filters.level === "400" ? "checked" : ""}> Level 300–400</label><label class="check-row"><input type="radio" name="level" value="500" ${state.filters.level === "500" ? "checked" : ""}> Level 500</label></div>
-        <div class="filter-group equipment-group"><h3>Equipment</h3>${["Projector", "Whiteboard", "AC"].map((item) => `<label class="check-row"><input type="checkbox" name="amenity" value="${item}" ${state.filters.amenities.includes(item) ? "checked" : ""}> ${item}</label>`).join("")}</div>
+        <div class="filter-group equipment-group"><h3>Equipment & games</h3>${amenityOptions.map((item) => `<label class="check-row"><input type="checkbox" name="amenity" value="${item}" ${state.filters.amenities.includes(item) ? "checked" : ""}> ${item}</label>`).join("")}</div>
         <div class="filter-group"><div class="toggle-line"><span>Faculty rooms</span><button class="toggle" role="switch" aria-checked="${state.filters.faculty}" aria-label="Show faculty rooms" data-action="faculty-toggle"></button></div></div>
         <div class="filter-group"><label class="check-row"><input type="checkbox" name="no-results" ${state.filters.noResults ? "checked" : ""}> No matches (preview)</label></div>
       </aside>
@@ -145,10 +196,10 @@ function review() {
   if (!room) return search();
   const bookingBeingModified = state.bookings.find((booking) => booking.id === state.modifyBookingId);
   return `<main><div class="container">  <div class="page-head"><button class="btn text" data-page="search">← Back to rooms</button><span class="eyebrow" style="display:block;margin-top:17px">One last look</span><h1>${state.modifyBookingId ? "Update your booking" : "Review your booking"}</h1><p>Make sure everything looks right before you lock it in.</p></div>
-    <section class="review-layout"><article class="review-card"><div class="review-room"><div class="room-visual visual-${room.image}"></div><div><span class="status-badge available">Available</span><h2 style="margin-top:9px">${room.name}</h2><p>${room.building} · Up to ${room.capacity} people</p></div></div>
-      <div class="review-details"><div><div class="detail-label">Date</div><div class="detail-value">${new Date(`${state.query.date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</div></div><div><div class="detail-label">Time</div><div class="detail-value">${state.query.time} · ${state.query.duration}</div></div><div><div class="detail-label">Access</div><div class="detail-value">${levelLabel(room.level)}</div></div></div>
+    <section class="review-layout"><article class="review-card"><div class="review-room"><div class="room-visual visual-${room.image}"></div><div><span class="status-badge available">Available</span><h2 style="margin-top:9px">${room.name}</h2><p>${room.building} · Up to ${room.capacity} people${room.minimumBookingSize ? ` · minimum booking ${room.minimumBookingSize}` : ""}</p></div></div>
+      <div class="review-details"><div><div class="detail-label">Date</div><div class="detail-value">${new Date(`${state.query.date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</div></div><div><div class="detail-label">Time</div><div class="detail-value">${state.query.time} · ${state.query.duration}</div></div><div><div class="detail-label">Access</div><div class="detail-value">${roomAccessLabel(room)}</div></div><div><div class="detail-label">Group size</div><div class="detail-value">${state.query.groupSize} people${room.minimumBookingSize ? ` · min ${room.minimumBookingSize}` : ""}</div></div></div>
       <form class="review-form" data-form="confirm"><label for="purpose">What's the room for?</label><select class="text-input" id="purpose" name="purpose"><option ${bookingBeingModified?.purpose === "Group study" ? "selected" : ""}>Group study</option><option ${bookingBeingModified?.purpose === "Project work" ? "selected" : ""}>Project work</option><option ${bookingBeingModified?.purpose === "Defense prep" ? "selected" : ""}>Defense prep</option><option ${bookingBeingModified?.purpose === "Quiet study" ? "selected" : ""}>Quiet study</option><option ${bookingBeingModified?.purpose === "Seminar" ? "selected" : ""}>Seminar</option></select>
-        <div class="access-check">${icon("check")} <span><strong>You're all set.</strong> Your Level 300 access meets this room's Level ${room.level} requirement.</span></div>
+        <div class="access-check">${icon("check")} <span><strong>You're all set.</strong> ${accountIsStaff() ? "Staff access is eligible for this room." : `Your Level ${accountLevel()} access is eligible for this room.`}</span></div>
         <div class="review-actions"><button type="button" class="btn text" data-action="room-taken">Simulate room taken</button><button type="submit" class="btn green">${icon("check")} ${state.modifyBookingId ? "Save changes" : "Confirm booking"}</button></div>
       </form></article></section>
   </div></main>`;
@@ -160,7 +211,7 @@ function bookings() {
     ${state.bookings.length ? `<div class="booking-list">${state.bookings.map((booking) => {
       const room = roomById(booking.roomId);
       const date = new Date(`${booking.date}T12:00:00`);
-      return `<article class="booking-row"><div class="booking-date"><strong>${date.getDate()}</strong><span>${date.toLocaleDateString(undefined, { month: "short" })}</span></div><div class="booking-info"><span class="booking-confirmed">✓ Confirmed · ${booking.purpose}</span><h3>${room.name}</h3><p>${date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })} · ${booking.time} · ${booking.duration} · ${room.building}</p></div><div class="booking-actions"><button class="btn secondary" data-action="modify" data-booking="${booking.id}">Modify</button><button class="btn secondary" data-action="qr" data-booking="${booking.id}">Demo pass</button><button class="btn text" data-action="cancel" data-booking="${booking.id}">Cancel</button></div></article>`;
+      return `<article class="booking-row"><div class="booking-date"><strong>${date.getDate()}</strong><span>${date.toLocaleDateString(undefined, { month: "short" })}</span></div><div class="booking-info"><span class="booking-confirmed">✓ Confirmed · ${booking.purpose}</span><h3>${room.name}</h3><p>${date.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })} · ${booking.time} · ${booking.duration} · ${booking.partySize ?? state.query.groupSize} people · ${room.building}</p></div><div class="booking-actions"><button class="btn secondary" data-action="modify" data-booking="${booking.id}">Modify</button><button class="btn secondary" data-action="qr" data-booking="${booking.id}">Demo pass</button><button class="btn text" data-action="cancel" data-booking="${booking.id}">Cancel</button></div></article>`;
     }).join("")}</div>` : `<div class="empty-state"><div class="empty-illustration">${icon("calendar")}</div><h2>Your next great session starts here</h2><p>You don't have any upcoming bookings right now. Find a space that feels right and make it yours.</p><button class="btn" data-page="search">Find an available room ${icon("arrow")}</button></div>`}
     </section>
   </div></main>`;
@@ -239,7 +290,7 @@ document.addEventListener("click", (event) => {
   }
   if (action === "clear-filters") {
     state.filters = { level: "all", amenities: [], faculty: false, noResults: false };
-    state.query.capacity = 2;
+    state.query.groupSize = 2;
     render();
   }
   if (action === "faculty-toggle") {
@@ -248,7 +299,14 @@ document.addEventListener("click", (event) => {
   }
   if (action === "book") {
     closeModal();
-    state.selectedRoom = Number(target.dataset.room);
+    const room = roomById(target.dataset.room);
+    const issue = bookingIssue(room);
+    if (issue) {
+      state.selectedRoom = null;
+      openModal(`<h2>Unable to book this room</h2><p>${issue}</p><div class="modal-actions"><button class="btn" data-action="close-modal">Got it</button></div>`);
+      return;
+    }
+    state.selectedRoom = room.id;
     go("review");
   }
   if (action === "room-taken") {
@@ -273,6 +331,7 @@ document.addEventListener("click", (event) => {
     state.query.date = booking.date;
     state.query.time = booking.time;
     state.query.duration = booking.duration;
+    state.query.groupSize = booking.partySize ?? state.query.groupSize;
     go("search");
   }
   if (action === "show-empty") {
@@ -299,9 +358,13 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("change", (event) => {
   const { target } = event;
+  if (target.matches("[data-account-role]")) {
+    state.accountRole = target.value;
+    render();
+  }
   if (target.matches("[data-query]")) {
     state.query[target.dataset.query] = target.value;
-    if (target.dataset.query === "capacity") state.query.capacity = target.value;
+    if (target.dataset.query === "groupSize") state.query.groupSize = target.value;
   }
   if (target.matches('input[name="level"]')) {
     state.filters.level = target.value;
@@ -327,8 +390,13 @@ document.addEventListener("submit", (event) => {
   if (event.target.matches('[data-form="confirm"]')) {
     event.preventDefault();
     const room = roomById(state.selectedRoom);
+    const issue = bookingIssue(room);
+    if (issue) {
+      openModal(`<h2>Unable to confirm booking</h2><p>${issue}</p><div class="modal-actions"><button class="btn" data-action="close-modal">Got it</button></div>`);
+      return;
+    }
     const formData = new FormData(event.target);
-    const updatedBooking = { id: state.modifyBookingId || Date.now(), roomId: room.id, date: state.query.date, time: state.query.time, duration: state.query.duration, purpose: formData.get("purpose") };
+    const updatedBooking = { id: state.modifyBookingId || Date.now(), roomId: room.id, date: state.query.date, time: state.query.time, duration: state.query.duration, partySize: Number(state.query.groupSize), purpose: formData.get("purpose") };
     if (state.modifyBookingId) {
       state.bookings = state.bookings.map((booking) => booking.id === state.modifyBookingId ? updatedBooking : booking);
       state.modifyBookingId = null;
